@@ -5,12 +5,26 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from Crypto.Random import get_random_bytes
 from Crypto.Hash import SHA256
+import psutil
+import os
 
 ## \brief Generuje losowe bajty z biblioteki Crypto.Random.
 #  \param n Liczba bajtów do wygenerowania.
 #  \return Wygenerowane losowe bajty.
 def random_bytes(n):
     return get_random_bytes(n)
+
+
+## \brief Sprawdza czy pendrive jest podlaczony.
+#  \return Ścieżkę podlączonego pendrive'a lub None jesli nie znajdzie.
+def find_usb_drive():
+    
+    for partition in psutil.disk_partitions():
+        
+        if 'removable' in partition.opts:
+            return partition.device  
+        
+    return None
 
 ## \brief Generuje parę kluczy RSA (publiczny i prywatny) o długości 4096 bitów.
 #  Generujemy klucze RSA prywatny i publiczny o długości 4096 bitów z użycim funkcji random_bytes, która zapewnia, że klucze są losowe.
@@ -31,7 +45,8 @@ def generate_public_private_RSA_keys():
 #   Tworzy obiekt do szyfrowania AES w trybie Cipher Block Chaining.
 #   Tworzy wektor inicjujący, który jest potrzebnt do szyfrowania.
 #   Szyfruje klucz prywatny, dbając o to, żeby dane miały długość wielokrotności rozmiaru bloku AES.
-#   Zapisuje zaszyfrowany klucz prywatny do pliku 'private_key_encrypted.pem'.
+#   Sprawdza czy jest podlaczony pendrive.
+#   Zapisuje zaszyfrowany klucz prywatny do pliku 'private_key_encrypted.pem' na pendrive.
 #  \param private_key    Klucz prywatny do zaszyfrowania.
 #  \param pin Podany przez użytkownika 4-cyfrowy kod PIN.
 def private_key_encryption(private_key, pin):
@@ -40,8 +55,16 @@ def private_key_encryption(private_key, pin):
     aes_encoding = AES.new(key_aes, AES.MODE_CBC)
     initialization_vector = aes_encoding.iv
     encrypted_private_key = aes_encoding.encrypt(pad(private_key, AES.block_size))
-    with open("private_key_encrypted.pem", "wb") as private_key_encrypted_file:
-        private_key_encrypted_file.write(initialization_vector + encrypted_private_key)
+    usb_path = find_usb_drive()
+    if usb_path:
+        file_path = os.path.join(usb_path, "private_key_encrypted.pem")
+        with open(file_path, "wb") as private_key_encrypted_file:
+            private_key_encrypted_file.write(initialization_vector + encrypted_private_key)
+    else:
+        messagebox.showerror("Error", "Nie znaleziono pendrive'a. Podłącz urządzenie i spróbuj ponownie.")
+        return False
+
+    return True
 
 ## \brief Reaguje na kliknięcie przycisku generowania kluczy.
 #  Zapewnia, że PIN jest 4 cyforwy, generuje klucze RSA oraz szyfruje klucz prywatny za pomocą wprowadzonego PIN-u.
@@ -51,8 +74,18 @@ def on_generate_keys():
         messagebox.showerror("Error", "PIN musi składać się z dokładnie 4 cyfr.")
         return
     private_key, public_key = generate_public_private_RSA_keys()
-    private_key_encryption(private_key, pin)
-    messagebox.showinfo("Sukces", "Klucz prywatny został zaszyfrowany.")
+    success=private_key_encryption(private_key, pin)
+    if success:
+        messagebox.showinfo("Sukces", "Klucz prywatny został zaszyfrowany i zapisany na pendrive.")
+
+def find_usb_drive():
+    
+    for partition in psutil.disk_partitions():
+        
+        if 'removable' in partition.opts:
+            return partition.device  
+        
+    return None
 
 ## \brief Tworzy główne okno aplikacji.
 
