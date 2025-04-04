@@ -18,12 +18,9 @@ def random_bytes(n):
 ## \brief Sprawdza czy pendrive jest podlaczony.
 #  \return Ścieżkę podlączonego pendrive'a lub None jesli nie znajdzie.
 def find_usb_drive():
-    
     for partition in psutil.disk_partitions():
-        
         if 'removable' in partition.opts:
             return partition.device  
-        
     return None
 
 ## \brief Generuje parę kluczy RSA (publiczny i prywatny) o długości 4096 bitów.
