@@ -65,24 +65,22 @@ def private_key_encryption(private_key, pin):
 
 ## \brief Reaguje na kliknięcie przycisku generowania kluczy.
 #  Zapewnia, że PIN jest 4 cyforwy, generuje klucze RSA oraz szyfruje klucz prywatny za pomocą wprowadzonego PIN-u.
+#  Informuje użytkownika o aktualnym stanie pracy (szyforwanie kluczy, sukces, błąd).
 def on_generate_keys():
     pin = pin_box.get()
     if len(pin) != 4 or not pin.isdigit():
         messagebox.showerror("Error", "PIN musi składać się z dokładnie 4 cyfr.")
         return
+    status_label.config(text="Trwa szyfrowanie klucza prywatnego...")
+    root.update_idletasks()
     private_key, public_key = generate_public_private_RSA_keys()
     success=private_key_encryption(private_key, pin)
     if success:
         messagebox.showinfo("Sukces", "Klucz prywatny został zaszyfrowany i zapisany na pendrive.")
-
-def find_usb_drive():
-    
-    for partition in psutil.disk_partitions():
-        
-        if 'removable' in partition.opts:
-            return partition.device  
-        
-    return None
+        status_label.config(text="")
+        pin_box.delete(0, tk.END)
+    else:
+        status_label.config(text="")
 
 ## \brief Tworzy główne okno aplikacji.
 
@@ -102,5 +100,8 @@ pin_box.pack(pady=5)
 ## \brief Przycisk do generowania kluczy RSA.
 button_to_generate_keys = tk.Button(root, text="Wygeneruj klucze", command=on_generate_keys, bg='#c5afe3', font=('Verdana', 10))
 button_to_generate_keys.pack(pady=20)
+## \brief Etykieta informacyjna wyświetlająca tymczasowe komunikaty dla użytkownika (informowanie o trwającym szyfrowaniu klucza prywatnego).
+status_label = tk.Label(root, text="", bg='#9264d1', fg='white', font=('Verdana', 9))
+status_label.pack(pady=5)
 
 root.mainloop()
