@@ -11,17 +11,41 @@ from tkinter import filedialog, messagebox
 privateFileName = "private_key_encrypted.pem"
 signatureLength = 512
 
-# szukanie pendrive'a podlaczonego do komputera
+
+# \brief Wyszukuje podłączone do komputera pendrive'y na podstawie dostępnych partycji.
+#
+# Funkcja przeszukuje wszystkie zamontowane partycje w systemie i identyfikuje te,
+# które są oznaczone jako „removable” (czyli urządzenia wymienne - np. pendrive'y).
+
+# \return Ścieżka urządzenia do jedynego wykrytego pendrive'a (np. '/dev/disk2' lub 'E:\\'),
+# liczba 2 w przypadku wykrycia wielu urządzeń, lub None jeśli nie znaleziono żadnego.
 def find_usb_drive():
-    
+    usb_drives = []
+
     for partition in psutil.disk_partitions():
         
         if 'removable' in partition.opts:
-            return partition.device  
+            usb_drives.append(partition.device) 
         
+    if len(usb_drives) == 1:
+        return usb_drives[0]
+    elif len(usb_drives) > 1:
+        #print("Wykryto więcej niż jeden pendrive. Proszę pozostawić pendrive posiadający klucz prywatny i odłączyć pozostałe.")
+        return 2
+    
     return None
 
 # szukanie pelnej sciezki do klucza prywatnego znajdujacego sie na pendrive
+##
+# \brief Wyszukuje pełną ścieżkę do pliku z kluczem prywatnym znajdującego się na pendrive.
+#
+# Funkcja buduje ścieżkę do pliku na podstawie ścieżki do podłączonego pendrive'a
+# oraz nazwy pliku klucza prywatnego, którego nazwa wynika z założenia programu i 
+# jest przechowywana w zmiennej globalnej wykorzystywanej w funkcji.
+#
+# \param usb_drive Ścieżka do zamontowanego pendrive'a (np. 'E:\\').
+# \return Pełna ścieżka do pliku z kluczem prywatnym - jeśli istnieje, None jeśli nie znaleziono klucza prywatnego na pendrive.
+
 def find_private_key_path(usb_drive):
 
     if usb_drive:
@@ -34,8 +58,20 @@ def find_private_key_path(usb_drive):
             return None
     else:
         return None
+    
 
-# odszyfrowywanie klucza prywatnego znalezionego na pendrive
+# \brief Odszyfrowuje wcześniej zaszyfrowany klucz prywatny RSA przy użyciu podanego PIN-u i algorytmu AES.
+#
+# Odczytuje dane z pliku z zaszyfrowanym kluczem prywatnym. Pierwsze 16 bajtów danych to wektor inicjujący (IV),
+# pozostałe bajty to zaszyfrowany klucz RSA. PIN wprowadzony przez użytkownika jest konwertowany na bajty,
+# a następnie hashowany algorytmem SHA-256, aby wygenerować klucz AES o długości 256 bitów.
+# Funkcja tworzy obiekt AES w trybie CBC (Cipher Block Chaining) z użyciem odczytanego IV,
+# następnie odszyfrowuje dane i usuwa padding, który został wcześniej dodany.
+#
+# \param private_key_path Ścieżka do pliku z zaszyfrowanym kluczem prywatnym.
+# \param pin Czterocyfrowy kod PIN podany przez użytkownika.
+# \return Odszyfrowany klucz prywatny RSA lub None, jeśli odszyfrowanie się nie powiodło.
+
 def decrypt_private_key(private_key_path, pin):
     try:
         with open(private_key_path, "rb") as f:
@@ -54,10 +90,20 @@ def decrypt_private_key(private_key_path, pin):
         
         return private_key
     except (ValueError, KeyError):
-        print("nieprawidłowy pin")
+        #print("nieprawidłowy pin")
         return None
 
-# podpisanie wybranego pdfa
+
+# \brief Podpisuje cyfrowo wskazany plik PDF za pomocą klucza prywatnego.
+#
+# Funkcja odczytuje zawartość pliku PDF i oblicza jego skrót SHA-256. Następnie tworzy podpis cyfrowy
+# przy użyciu klucza prywatnego RSA oraz algorytmu podpisu PKCS#1 v1.5. Podpis zostaje dołączony na końcu
+# oryginalnego pliku. Po dołączeniu podpisu plik zostaje przemianowany — do nazwy pliku dodawany jest sufiks "_signed".
+# Oryginalny plik zostaje zastąpiony podpisanym.
+#
+# \param file_path Ścieżka do pliku PDF, który ma zostać podpisany.
+# \param decrypted_private_key Odszyfrowany klucz prywatny RSA wykorzystywany do generowania podpisu.
+
 def sign_file(file_path, decrypted_private_key):
     
     with open(file_path, "rb") as f:
@@ -73,7 +119,16 @@ def sign_file(file_path, decrypted_private_key):
     os.rename(file_path, new_file_path)
     print("podpisane")
 
-# weryfikacja podpisanego pdfa
+
+# \brief Weryfikuje podpis cyfrowy znajdujący się na końcu pliku PDF przy użyciu klucza publicznego RSA.
+#
+# Funkcja odczytuje zawartość pliku PDF: wydziela końcowe 512 bajtów jako podpis, a pozostałe dane traktuje jako treść dokumentu.
+# Na podstawie treści tworzy skrót SHA-256, a następnie weryfikuje podpis przy użyciu klucza publicznego RSA i algorytmu PKCS#1 v1.5.
+#
+# \param file_path Ścieżka do podpisanego pliku PDF.
+# \param public_key_path Ścieżka do pliku zawierającego klucz publiczny RSA w formacie PEM.
+# \return True, jeśli podpis jest prawidłowy, False w przeciwnym razie.
+
 def verify_signature(file_path, public_key_path):
 
     with open(public_key_path, "rb") as f:
@@ -95,18 +150,27 @@ def verify_signature(file_path, public_key_path):
         print("nie jest git")
         return False
 
-# GUI
 
+## \brief Tworzy główne okno aplikacji.
 root = tk.Tk()
 root.title("Podpisywanie i Weryfikacja plików PDF")
 root.geometry("400x300")
 root.configure(bg="#9264d1")
 
 
+# \brief Czyści wszystkie elementy z głównego okna aplikacji.
+#
+# Funkcja usuwa wszystkie widżety potomne z głównego okna `root`, co umożliwia
+# przeładowanie interfejsu użytkownika (np. przed załadowaniem innego ekranu).
 def clear_window():
     for widget in root.winfo_children():
         widget.destroy()
 
+
+# \brief Wyświetla główne menu aplikacji z opcjami podpisywania i weryfikacji PDF.
+#
+# Funkcja czyści aktualne okno i tworzy interfejs zawierający przyciski umożliwiające
+# użytkownikowi wybór jednej z dostępnych opcji: podpisania pliku PDF lub weryfikacji podpisu.
 
 def show_main_menu():
     clear_window()
@@ -115,6 +179,15 @@ def show_main_menu():
     tk.Button(root, text="Podpisz PDF", command=show_sign_screen, bg="#c5afe3", font=("Verdana", 10)).pack(pady=10)
     tk.Button(root, text="Zweryfikuj PDF", command=verify_pdf_screen, bg="#c5afe3", font=("Verdana", 10)).pack(pady=10)
 
+
+# \brief Wyświetla ekran umożliwiający podpisanie pliku PDF przy użyciu klucza prywatnego z pendrive'a.
+#
+# Funkcja tworzy graficzny interfejs, w którym użytkownik wprowadza PIN, a następnie wybiera plik PDF do podpisania.
+# System sprawdza, czy podłączony jest dokładnie jeden pendrive z kluczem prywatnym, odszyfrowuje klucz przy użyciu PIN-u,
+# a następnie podpisuje wskazany plik. W przypadku błędów (brak pendrive'a, więcej niż jeden pendrive podłączony do komputera,
+# nieprawidłowy PIN, brak klucza prywatnego na pendrive) użytkownik otrzymuje odpowiedni komunikat.
+#
+# Po zakończeniu operacji podpisywania pliku, ekran główny zostaje przywrócony.
 
 def show_sign_screen():
     clear_window()
@@ -141,6 +214,9 @@ def show_sign_screen():
         if not usb_drive:
             messagebox.showerror("Błąd", "Nie wykryto zewnętrznego nośnika danych - pendrive.")
             return
+        elif usb_drive == 2:
+            messagebox.showerror("Błąd", "Wykryto więcej niż jeden pendrive. Proszę pozostawić podłączony pendrive posiadający klucz prywatny i odłączyć pozostałe.")
+            return
         
         private_key_path = find_private_key_path(usb_drive)
 
@@ -160,6 +236,13 @@ def show_sign_screen():
     tk.Button(root, text="Podpisz", command=handle_sign, bg="#c5afe3", font=("Verdana", 10)).pack(pady=10)
     tk.Button(root, text="Wróć", command=show_main_menu, bg="#c5afe3", font=("Verdana", 10)).pack(pady=5)
 
+
+# \brief Wyświetla ekran umożliwiający weryfikację podpisu cyfrowego w pliku PDF.
+#
+# Funkcja generuje graficzny interfejs, w którym użytkownik może wybrać podpisany plik PDF
+# oraz odpowiadający mu klucz publiczny w formacie PEM. Po zatwierdzeniu dane są przekazywane
+# do funkcji weryfikującej podpis cyfrowy. Wynik operacji prezentowany jest użytkownikowi
+# w formie komunikatu informacyjnego. Po zakończeniu operacji użytkownik wraca do głównego menu aplikacji.
 
 def verify_pdf_screen():
     clear_window()
