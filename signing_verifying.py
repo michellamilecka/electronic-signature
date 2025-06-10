@@ -232,6 +232,7 @@ def show_sign_screen():
             return
 
         sign_file(file_path, private_key)
+        messagebox.showinfo("Sukces", "Plik został podpisany pomyślnie.")
         show_main_menu()
 
     tk.Button(root, text="Podpisz", command=handle_sign, bg="#c5afe3", font=("Verdana", 10)).pack(pady=10)
@@ -278,7 +279,7 @@ def verify_pdf_screen():
         is_verified = verify_signature(pdf, public_key)
 
         if is_verified:
-            messagebox.showinfo("Weryfikacja", "Weryfkiacja pomyślna - Podpis jest prawidłowy.")
+            messagebox.showinfo("Weryfikacja", "Weryfikacja pomyślna - Podpis jest prawidłowy.")
         else:
             messagebox.showerror("Weryfikacja", "Weryfikacja niepomyślna - Podpis jest nieprawidłowy.")
 
