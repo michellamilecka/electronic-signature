@@ -145,10 +145,10 @@ def verify_signature(file_path, public_key_path):
 
     try:
         pkcs1_15.new(public_key).verify(file_hash, signature)
-        print("jest git")
+        print("Weryfikacja pomyslna")
         return True
     except (ValueError, TypeError):
-        print("nie jest git")
+        print("Weryfikacja niepomyslna")
         return False
 
 
