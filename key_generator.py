@@ -15,16 +15,31 @@ def random_bytes(n):
     return get_random_bytes(n)
 
 
-## \brief Sprawdza czy pendrive jest podlaczony.
-#  \return Ścieżkę podlączonego pendrive'a lub None jesli nie znajdzie.
+## \brief Wyszukuje podłączone do komputera pendrive'y na podstawie dostępnych partycji.
+#
+# Funkcja przeszukuje wszystkie zamontowane partycje w systemie i identyfikuje te,
+# które są oznaczone jako „removable” (czyli urządzenia wymienne - np. pendrive'y).
+
+# \return Ścieżka urządzenia do jedynego wykrytego pendrive'a (np. '/dev/disk2' lub 'E:\\'),
+# liczba 2 w przypadku wykrycia wielu urządzeń, lub None jeśli nie znaleziono żadnego.
 def find_usb_drive():
+    usb_drives = []
+
     for partition in psutil.disk_partitions():
+        
         if 'removable' in partition.opts:
-            return partition.device  
+            usb_drives.append(partition.device) 
+        
+    if len(usb_drives) == 1:
+        return usb_drives[0]
+    elif len(usb_drives) > 1:
+        #print("Wykryto więcej niż jeden pendrive. Proszę pozostawić pendrive posiadający klucz prywatny i odłączyć pozostałe.")
+        return 2
+    
     return None
 
 ## \brief Generuje parę kluczy RSA (publiczny i prywatny) o długości 4096 bitów.
-#  Generujemy klucze RSA prywatny i publiczny o długości 4096 bitów z użycim funkcji random_bytes, która zapewnia, że klucze są losowe.
+#  Generujemy klucze RSA prywatny i publiczny o długości 4096 bitów z użyciem funkcji random_bytes, która zapewnia, że klucze są losowe.
 #  Eksportuje klucz publiczny i prywatny.
 #  Zapisuje klucz publiczny do pliku 'public_key.pem'.
 #  \return Wygenerowane klucze: publiczny i prywatny.
@@ -47,19 +62,24 @@ def generate_public_private_RSA_keys():
 #  \param private_key    Klucz prywatny do zaszyfrowania.
 #  \param pin Podany przez użytkownika 4-cyfrowy kod PIN.
 def private_key_encryption(private_key, pin):
+    usb_path = find_usb_drive()
+    
+    if usb_path == 2:
+        messagebox.showerror("Błąd", "Wykryto więcej niż jeden pendrive. Podłącz tylko ten, na którym chcesz zapisać klucz prywatny.")
+        return False
+    elif usb_path is None:
+        messagebox.showerror("Błąd", "Nie znaleziono pendrive'a. Podłącz urządzenie i spróbuj ponownie.")
+        return False
     pin_encoded = pin.encode('utf-8')
     key_aes = SHA256.new(pin_encoded).digest()[:32]
     aes_encoding = AES.new(key_aes, AES.MODE_CBC)
     initialization_vector = aes_encoding.iv
     encrypted_private_key = aes_encoding.encrypt(pad(private_key, AES.block_size))
-    usb_path = find_usb_drive()
-    if usb_path:
-        file_path = os.path.join(usb_path, "private_key_encrypted.pem")
-        with open(file_path, "wb") as private_key_encrypted_file:
-            private_key_encrypted_file.write(initialization_vector + encrypted_private_key)
-    else:
-        messagebox.showerror("Error", "Nie znaleziono pendrive'a. Podłącz urządzenie i spróbuj ponownie.")
-        return False
+    
+
+    file_path = os.path.join(usb_path, "private_key_encrypted.pem")
+    with open(file_path, "wb") as private_key_encrypted_file:
+        private_key_encrypted_file.write(initialization_vector + encrypted_private_key)
 
     return True
 
